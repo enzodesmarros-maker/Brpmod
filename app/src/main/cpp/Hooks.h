@@ -4,7 +4,6 @@
 #include "KittyMemory.hpp"
 #include "dobby.h"
 
-// MemoryPatch — tenta .hpp primeiro, fallback para .h
 #if __has_include("MemoryPatch.hpp")
   #include "MemoryPatch.hpp"
 #elif __has_include("MemoryPatch.h")
@@ -29,8 +28,9 @@ namespace Patches {
 
     inline void ApplyGodMode(bool enable) {
         uintptr_t base = Memory::g_Il2CppBase;
-        uintptr_t funcAddr = base + Offsets::Funcs::CPed_IsAlive;
+        uintptr_t funcAddr = base + Offsets::CPed_IsAlive;
         if (enable) {
+            // MOV W0, #1 ; RET — faz IsAlive sempre retornar true
             patch_GodMode = MemoryPatch::createWithHex(funcAddr, "20 00 80 52 C0 03 5F D6");
             patch_GodMode.Modify();
             LOGI("[Patch] GodMode ON");
@@ -38,6 +38,12 @@ namespace Patches {
             patch_GodMode.Restore();
             LOGI("[Patch] GodMode OFF");
         }
+    }
+
+    inline void ApplyNoRecoil(bool enable) {
+        // No SA-MP o recoil é client-side, podemos zerar via memória
+        // Por ora deixa como stub — sem crash
+        LOGI("[Patch] NoRecoil %s", enable ? "ON" : "OFF");
     }
 }
 
@@ -56,7 +62,7 @@ namespace Hooks {
 
     inline void InstallAll() {
         uintptr_t base = Memory::g_Il2CppBase;
-        void* target = reinterpret_cast<void*>(base + Offsets::Funcs::CPlayerPed_ProcessControl);
+        void* target = reinterpret_cast<void*>(base + Offsets::CPlayerPed_Process);
         DobbyHook(target, (void*)hk_ProcessControl, (void**)&orig_ProcessControl);
         LOGI("[Hooks] Instalados!");
     }
