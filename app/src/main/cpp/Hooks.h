@@ -1,7 +1,7 @@
 #pragma once
 #include "Memory.h"
 #include "GameData.h"
-#include "KittyMemory/KittyMemory.hpp"
+#include "KittyMemory.hpp"
 #include "dobby.h"
 
 // ═══════════════════════════════════════════════════════════════════════════════
