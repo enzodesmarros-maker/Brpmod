@@ -13,20 +13,17 @@ jobs:
     name: NDK Build arm64-v8a
 
     steps:
-      # ── 1. Checkout ───────────────────────────────────────────────────────────
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ── 2. Java 17 ────────────────────────────────────────────────────────────
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # ── 3. Android SDK + NDK r25c ─────────────────────────────────────────────
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
@@ -35,7 +32,6 @@ jobs:
           echo "y" | sdkmanager "ndk;25.2.9519653" 2>/dev/null
           echo "NDK_ROOT=$ANDROID_SDK_ROOT/ndk/25.2.9519653" >> $GITHUB_ENV
 
-      # ── 4. Baixar libs automaticamente (sem precisar de submódulos) ───────────
       - name: Download KittyMemory
         run: |
           git clone --depth=1 https://github.com/MJx0/KittyMemory \
@@ -48,26 +44,35 @@ jobs:
 
       - name: Download e compilar Dobby
         run: |
-          git clone --depth=1 https://github.com/jmpews/Dobby \
-            /tmp/Dobby
+          git clone --depth=1 https://github.com/jmpews/Dobby /tmp/Dobby
           mkdir -p /tmp/Dobby_build && cd /tmp/Dobby_build
+
           cmake /tmp/Dobby \
             -DCMAKE_TOOLCHAIN_FILE=$NDK_ROOT/build/cmake/android.toolchain.cmake \
             -DANDROID_ABI=arm64-v8a \
             -DANDROID_PLATFORM=android-28 \
             -DANDROID_STL=c++_shared \
             -DCMAKE_BUILD_TYPE=Release \
-            -DPlugin.SymbolResolver=OFF
-          cmake --build . -j$(nproc)
-          # Copia output para o projeto
+            -DCMAKE_ASM_FLAGS="-target aarch64-linux-android28" \
+            -DPlugin.SymbolResolver=OFF \
+            -DPlugin.Darwin.HideLibrary=OFF \
+            -DPlugin.Darwin.ObjcRuntime=OFF
+
+          cmake --build . -j$(nproc) --target dobby || cmake --build . -j$(nproc) --target dobby_static
+
           mkdir -p $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/arm64-v8a
           mkdir -p $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/include
-          cp /tmp/Dobby_build/libdobby.a \
-            $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/arm64-v8a/
-          cp /tmp/Dobby/include/dobby.h \
-            $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/include/
 
-      # ── 5. Build ──────────────────────────────────────────────────────────────
+          if [ -f /tmp/Dobby_build/libdobby.a ]; then
+            cp /tmp/Dobby_build/libdobby.a $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/arm64-v8a/
+          elif [ -f /tmp/Dobby_build/libdobby_static.a ]; then
+            cp /tmp/Dobby_build/libdobby_static.a $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/arm64-v8a/libdobby.a
+          else
+            find /tmp/Dobby_build -name "*.a" | head -1 | xargs -I{} cp {} $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/arm64-v8a/libdobby.a
+          fi
+
+          cp /tmp/Dobby/include/dobby.h $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/include/
+
       - name: Build com ndk-build
         run: |
           cd app/src/main/cpp
@@ -79,12 +84,11 @@ jobs:
             -j$(nproc) \
             V=0
 
-      # ── 6. Verifica o .so gerado ──────────────────────────────────────────────
       - name: Verificar output
         run: |
           SO=app/src/main/cpp/out/libs/arm64-v8a/libmod.so
           if [ -f "$SO" ]; then
-            echo "✅ Build OK: $SO"
+            echo "✅ Build OK"
             ls -lh $SO
             file $SO
           else
@@ -92,7 +96,6 @@ jobs:
             exit 1
           fi
 
-      # ── 7. Upload do artifact ─────────────────────────────────────────────────
       - name: Upload libmod.so
         uses: actions/upload-artifact@v4
         with:
