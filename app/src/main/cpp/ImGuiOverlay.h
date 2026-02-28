@@ -72,3 +72,23 @@ namespace ImGuiOverlay {
         g_initialized = false;
     }
 }
+
+namespace ImGuiOverlay {
+    // Hook do eglSwapBuffers para renderizar ImGui a cada frame
+    typedef EGLBoolean (*eglSwapBuffers_t)(EGLDisplay, EGLSurface);
+    eglSwapBuffers_t orig_eglSwapBuffers = nullptr;
+
+    EGLBoolean hk_eglSwapBuffers(EGLDisplay display, EGLSurface surface) {
+        Render();
+        return orig_eglSwapBuffers(display, surface);
+    }
+
+    inline void InstallHook() {
+        void* egl = dlopen("libEGL.so", RTLD_NOW);
+        if (!egl) { LOGE("[ImGui] libEGL nao encontrada"); return; }
+        void* sym = dlsym(egl, "eglSwapBuffers");
+        if (!sym) { LOGE("[ImGui] eglSwapBuffers nao encontrado"); return; }
+        DobbyHook(sym, (void*)hk_eglSwapBuffers, (void**)&orig_eglSwapBuffers);
+        LOGI("[ImGui] Hook eglSwapBuffers instalado");
+    }
+}

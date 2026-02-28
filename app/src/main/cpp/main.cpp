@@ -31,7 +31,7 @@ void* ModThread(void*) {
     Aimbot::InstallSilentHook();
 
     // 4. ImGui via hook do eglSwapBuffers
-    ImGuiOverlay::InstallHook();
+    // ImGuiOverlay hook instalado via eglSwapBuffers em ImGuiOverlay.h
 
     LOGI("[Main] Tudo pronto!");
     return nullptr;
