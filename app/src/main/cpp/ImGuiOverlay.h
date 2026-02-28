@@ -1,7 +1,7 @@
 #pragma once
-#include "imgui/imgui.h"
-#include "imgui/imgui_impl_android.h"
-#include "imgui/imgui_impl_opengl3.h"
+#include "imgui.h"
+#include "imgui_impl_android.h"
+#include "imgui_impl_opengl3.h"
 #include "Hooks.h"
 #include "Aimbot.h"
 #include "GameData.h"
