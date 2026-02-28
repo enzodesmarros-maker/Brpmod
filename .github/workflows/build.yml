@@ -42,35 +42,41 @@ jobs:
           git clone --depth=1 https://github.com/ocornut/imgui \
             app/src/main/cpp/libs/imgui
 
-      - name: Download Dobby pre-compilado
+      - name: Compilar Dobby sem ASM problemático
         run: |
-          mkdir -p app/src/main/cpp/libs/Dobby/arm64-v8a
-          mkdir -p app/src/main/cpp/libs/Dobby/include
-
           git clone --depth=1 https://github.com/jmpews/Dobby /tmp/Dobby
-          cp /tmp/Dobby/include/dobby.h app/src/main/cpp/libs/Dobby/include/
 
-          CLANG=$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang++
-          AR=$NDK_ROOT/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar
-          mkdir -p /tmp/dobby_obj
+          # Remove os .asm que usam sintaxe macOS incompatível com Linux
+          find /tmp/Dobby -name "*.asm" -delete
 
-          find /tmp/Dobby/source -name "*.cpp" -o -name "*.cc" -o -name "*.c" | \
-          grep -v "\.asm\|Darwin\|x86\|x64\|/arm/" | \
-          while read f; do
-            out="/tmp/dobby_obj/$(echo $f | tr '/' '_').o"
-            $CLANG -c "$f" \
-              -I /tmp/Dobby/include \
-              -I /tmp/Dobby/source \
-              -DTARGET_ARCH_ARM64 \
-              -std=c++17 -O2 \
-              -target aarch64-linux-android28 \
-              -o "$out" 2>/dev/null || true
-          done
+          # Remove referências aos .asm no CMakeLists
+          sed -i '/\.asm/d' /tmp/Dobby/CMakeLists.txt || true
+          grep -rl "\.asm" /tmp/Dobby/source | xargs sed -i '/\.asm/d' || true
 
-          $AR rcs app/src/main/cpp/libs/Dobby/arm64-v8a/libdobby.a \
-            /tmp/dobby_obj/*.o 2>/dev/null || true
+          mkdir -p /tmp/Dobby_build && cd /tmp/Dobby_build
+          cmake /tmp/Dobby \
+            -DCMAKE_TOOLCHAIN_FILE=$NDK_ROOT/build/cmake/android.toolchain.cmake \
+            -DANDROID_ABI=arm64-v8a \
+            -DANDROID_PLATFORM=android-28 \
+            -DANDROID_STL=c++_shared \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DPlugin.SymbolResolver=OFF \
+            -DPlugin.Darwin.HideLibrary=OFF \
+            -DPlugin.Darwin.ObjcRuntime=OFF
 
-          ls -lh app/src/main/cpp/libs/Dobby/arm64-v8a/
+          cmake --build . -j$(nproc) 2>&1 | tail -30
+
+          mkdir -p $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/arm64-v8a
+          mkdir -p $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/include
+
+          find /tmp/Dobby_build -name "*.a" | head -1 | \
+            xargs -I{} cp {} \
+            $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/arm64-v8a/libdobby.a
+
+          cp /tmp/Dobby/include/dobby.h \
+            $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/include/
+
+          ls -lh $GITHUB_WORKSPACE/app/src/main/cpp/libs/Dobby/arm64-v8a/
 
       - name: Build com ndk-build
         run: |
@@ -81,7 +87,7 @@ jobs:
             NDK_LIBS_OUT=./out/libs \
             NDK_OUT=./out/obj \
             -j$(nproc) \
-            V=0
+            V=1
 
       - name: Verificar output
         run: |
