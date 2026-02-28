@@ -34,8 +34,17 @@ jobs:
 
       - name: Download KittyMemory
         run: |
-          git clone --depth=1 https://github.com/MJx0/KittyMemory \
-            app/src/main/cpp/libs/KittyMemory
+          git clone --depth=1 https://github.com/MJx0/KittyMemory /tmp/KittyMemory
+          mkdir -p app/src/main/cpp/libs/KittyMemory
+          if [ -f /tmp/KittyMemory/KittyMemory/KittyMemory.cpp ]; then
+            cp /tmp/KittyMemory/KittyMemory/* app/src/main/cpp/libs/KittyMemory/
+            echo "✅ Copiado de subpasta"
+          else
+            cp /tmp/KittyMemory/*.cpp /tmp/KittyMemory/*.h app/src/main/cpp/libs/KittyMemory/ 2>/dev/null || true
+            echo "✅ Copiado da raiz"
+          fi
+          echo "Arquivos em libs/KittyMemory:"
+          ls app/src/main/cpp/libs/KittyMemory/
 
       - name: Download Dear ImGui
         run: |
